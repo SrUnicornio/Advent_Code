@@ -6,26 +6,6 @@
 
 using namespace std;
 
-// Divide una cadena en partes según el delimitador especificado
-vector<string> splitString(const string& str, char delimiter) {
-  vector<string> result;
-  string current = "";
-  for (char ch : str) {
-    if (ch == delimiter) {
-      if (!current.empty()) {
-        result.push_back(current);
-        current = "";
-      }
-    } else {
-      current += ch;
-    }
-  }
-  if (!current.empty()) {
-    result.push_back(current);
-  }
-  return result;
-}
-
 // Verifica si una posición está dentro de los límites de la matriz
 bool isWithinBounds(int row, int col, int numRows, int numCols) {
   return row >= 0 && row < numRows && col >= 0 && col < numCols;
@@ -127,9 +107,6 @@ int solvePart2(const vector<vector<int>>& heightMap) {
 }
 
 int main() {
-  ios_base::sync_with_stdio(false);
-  cin.tie(nullptr);
-
   vector<vector<int>> heightMap;
   ifstream inputFile("input.txt");
 

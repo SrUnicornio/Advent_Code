@@ -161,10 +161,6 @@ long long calculatePart2Score(const vector<char>& inputData) {
 }
 
 int main() {
-  ios_base::sync_with_stdio(0);
-  cin.tie(0);
-  cout.tie(0);
-
   vector<char> inputData;
 
   // Leer datos del archivo de entrada
