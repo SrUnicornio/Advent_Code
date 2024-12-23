@@ -1,90 +1,182 @@
-#include <cmath>
-#include <fstream>
 #include <iostream>
+#include <regex>
 #include <sstream>
 #include <string>
-#include <utility>
 #include <vector>
+#include <fstream>
+
+using namespace std;
+
+vector<string> splitString(const string& str, char splitter) {
+  vector<string> vec = vector<string>();
+
+  int last = 0;
+  int size = str.size();
+  int i;
+  for (i = 0; i < size; i++) {
+    if (str[i] == splitter) {
+      vec.push_back(str.substr(last, i - last));
+      last = i + 1;
+    }
+  }
+  string leftover = str.substr(last, i - last);
+  if (!leftover.empty()) vec.push_back(str.substr(last, i - last));
+
+  return vec;
+}
+
+string readInput(char* argv[]) {
+  if (argv[1] == nullptr) {
+    cerr << "Error: Please provide the path to the inputs folder" << '\n';
+    exit(EXIT_FAILURE);
+  }
+
+  ifstream inputFile = ifstream(string("input.txt"));
+  if (!inputFile.is_open()) {
+    cerr << "Error: input file not found." << '\n';
+    exit(EXIT_FAILURE);
+  }
+
+  string fileContent = string((istreambuf_iterator<char>(inputFile)),
+                              istreambuf_iterator<char>());
+
+  while (fileContent.back() == '\n') fileContent.erase(fileContent.size() - 1);
+  fileContent.push_back('\n');
+
+  inputFile.close();
+  return fileContent;
+}
+
+string trimEnd(const string& str, char c = ' ') {
+  size_t first = str.find_first_not_of(c);
+  size_t last = str.find_last_not_of(c);
+  return str.substr(first, (last - first + 1));
+}
 
 struct Robot {
-  int x, y;    // Current position
-  int vx, vy;  // Velocity
+  int x;
+  int y;
+  vector<int> direction;
 };
 
-// Define the grid dimensions
-const int GRID_WIDTH = 101;
-const int GRID_HEIGHT = 103;
+struct Game {
+  vector<Robot> robots;
+  int maxX = 101;
+  int maxY = 103;
+};
 
-// Function to parse input lines into positions and velocities
-Robot parseRobot(const std::string& line) {
-  Robot robot;
-  sscanf(line.c_str(), "p=%d,%d v=%d,%d", &robot.x, &robot.y, &robot.vx, &robot.vy);
-  return robot;
+Game parseInput(const string& input) {
+  Game game;
+  vector<Robot> robots;
+  vector<string> lines = splitString(input, '\n');
+  regex re("p=(-?[0-9]+),(-?[0-9]+) v=(-?[0-9]+),(-?[0-9]+)");
+  smatch match;
+  for (int i = 0; i < lines.size(); i++) {
+    Robot robot;
+    regex_search(lines[i], match, re);
+    robot.x = stoi(match[1].str());
+    robot.y = stoi(match[2].str());
+    robot.direction.push_back(stoi(match[3].str()));
+    robot.direction.push_back(stoi(match[4].str()));
+    robots.push_back(robot);
+  }
+
+  game.robots = robots;
+
+  return game;
 }
 
-// Function to simulate robot motion for a given number of seconds
-std::pair<int, int> simulatePosition(std::pair<int, int> position,
-                                     std::pair<int, int> velocity, int seconds) {
-  int x = (position.first + velocity.first * seconds) % GRID_WIDTH;
-  int y = (position.second + velocity.second * seconds) % GRID_HEIGHT;
-
-  // Handle wrapping for negative positions
-  if (x < 0) x += GRID_WIDTH;
-  if (y < 0) y += GRID_HEIGHT;
-
-  return {x, y};
+Robot moveRobot(const Robot& robot, int rounds, int maxX, int maxY) {
+  Robot newRobot = robot;
+  // calculate new position of robot
+  // new position = old position + direction * rounds % max position + max
+  // position (to avoid negative values) % max position (to wrap around)
+  newRobot.x = ((robot.x + robot.direction[0] * rounds) % maxX + maxX) % maxX;
+  newRobot.y = ((robot.y + robot.direction[1] * rounds) % maxY + maxY) % maxY;
+  return newRobot;
 }
 
-// Function to calculate the safety factor
-int calculateSafetyFactor(
-    const std::vector<Robot>& robots, int seconds) {
-  // Quadrant counts
-  int q1 = 0, q2 = 0, q3 = 0, q4 = 0;
+int solution_1(const string& input) {
+  Game game = parseInput(input);
+  int rounds = 100;
+  int middleX = game.maxX / 2;
+  int middleY = game.maxY / 2;
+  vector<int> quadrants = {0, 0, 0, 0};
+  for (Robot robot : game.robots) {
+    robot = moveRobot(robot, rounds, game.maxX, game.maxY);
+    if (robot.x != middleX && robot.y != middleY) {
+      if (robot.x < middleX && robot.y < middleY) {
+        quadrants[0]++;
+      } else if (robot.x > middleX && robot.y < middleY) {
+        quadrants[1]++;
+      } else if (robot.x < middleX && robot.y > middleY) {
+        quadrants[2]++;
+      } else if (robot.x > middleX && robot.y > middleY) {
+        quadrants[3]++;
+      }
+    }
+  }
+  return quadrants[0] * quadrants[1] * quadrants[2] * quadrants[3];
+}
 
-  for (const auto& robot : robots) {
-    // Simulate the position of the robot after the given number of seconds
-    std::pair<int, int> position = {robot.x, robot.y};
-    std::pair<int, int> velocity = {robot.vx, robot.vy};
-    auto [x, y] = simulatePosition(position, velocity, seconds);
+vector<vector<bool>> getRobotRepresentation(vector<Robot> robots, int width,
+                                            int height) {
+  vector<vector<bool>> robots_representation =
+      vector<vector<bool>>(height, vector<bool>(width, false));
+  for (Robot robot : robots) {
+    robots_representation[robot.y][robot.x] = true;
+  }
+  return robots_representation;
+}
 
-    // Determine the quadrant
-    if (x > GRID_WIDTH / 2 && y < GRID_HEIGHT / 2) {
-      q1++;  // Top-right quadrant
-    } else if (x < GRID_WIDTH / 2 && y < GRID_HEIGHT / 2) {
-      q2++;  // Top-left quadrant
-    } else if (x < GRID_WIDTH / 2 && y > GRID_HEIGHT / 2) {
-      q3++;  // Bottom-left quadrant
-    } else if (x > GRID_WIDTH / 2 && y > GRID_HEIGHT / 2) {
-      q4++;  // Bottom-right quadrant
+bool isEasterEgg(vector<Robot> robots, int width, int height) {
+  vector<vector<bool>> robots_representation =
+      getRobotRepresentation(robots, width, height);
+
+  for (int y = 2; y < height - 2; y++) {
+    for (int x = 2; x < width - 2; x++) {
+      if (robots_representation[y][x] &&      // top of triangle
+          robots_representation[y + 1][x] &&  // second row of triangle middle
+          robots_representation[y + 1]
+                               [x + 1] &&  // second row of triangle right
+          robots_representation[y + 1][x - 1] &&  // second row of triangle left
+          robots_representation[y + 2][x] &&      // bottom of triangle middle
+          robots_representation[y + 2][x + 1] &&  // bottom of triangle right
+          robots_representation[y + 2][x - 1] &&  // bottom of triangle left
+          robots_representation[y + 2][x + 2] &&  // bottom of triangle right
+          robots_representation[y + 2][x - 2]     // bottom of triangle left
+      ) {
+        return true;
+      }
     }
   }
 
-  // Calculate and return the safety factor
-  return q1 * q2 * q3 * q4;
+  return false;
 }
 
-int main() {
-  std::vector<Robot> robots;
-  std::string line;
-
-  // Read input from a file
-  std::ifstream inputFile("input.txt");
-  if (!inputFile.is_open()) {
-    std::cerr << "Unable to open input file." << std::endl;
-    return 1;
+int solution_2(const string& input) {
+  Game game = parseInput(input);
+  int rounds = 0;
+  while (true) {
+    vector<Robot> robots = {};
+    for (Robot robot : game.robots) {
+      Robot newRobot = moveRobot(robot, rounds, game.maxX, game.maxY);
+      robots.push_back(newRobot);
+    }
+    if (isEasterEgg(robots, game.maxX, game.maxY)) {
+      break;
+    }
+    rounds++;
   }
 
-  while (getline(inputFile, line)) {
-    robots.push_back(parseRobot(line));
-  }
+  return rounds;
+}
 
-  inputFile.close();
+int main(int argc, char* argv[]) {
+  string input = readInput(argv);
 
-  // Simulate for 100 seconds and calculate the safety factor
-  int safetyFactor = calculateSafetyFactor(robots, 100);
-
-  // Output the result
-  std::cout << "Safety Factor: " << safetyFactor << std::endl;
+  cout << "Part 1: " << solution_1(input) << '\n';
+  cout << "Part 2: " << solution_2(input) << '\n';
 
   return 0;
 }
